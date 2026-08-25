@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "collection_id": "fixture-benign-0001",
+  "created_at": "2026-08-25T00:00:00Z",
+  "consent": {
+    "local_collection_confirmed": true,
+    "llm_submission_confirmed": true,
+    "purpose": "triagem defensiva do sintoma cmd.exe/PowerShell no boot",
+    "provider_name": "mock-provider",
+    "data_mode": "redacted",
+    "retention_acknowledged": true,
+    "recorded_at": "2026-08-25T00:00:00Z"
+  },
+  "host": {
+    "os_family": "Windows",
+    "os_version": "fixture",
+    "build_number": "fixture",
+    "architecture": "amd64",
+    "hostname": "HOST-REDACTED",
+    "interactive_user": "USER-REDACTED",
+    "privilege_context": "standard_user",
+    "defender_present": true
+  },
+  "collection": {
+    "started_at": "2026-08-25T00:00:00Z",
+    "finished_at": "2026-08-25T00:00:10Z",
+    "collector_version": "fixture",
+    "categories_requested": ["processes", "persistence", "scheduled_tasks", "services", "wmi_subscriptions", "winlogon", "network", "defender_events"],
+    "categories_completed": ["processes", "persistence", "scheduled_tasks", "services", "wmi_subscriptions", "winlogon", "network", "defender_events"],
+    "read_only_assertion": true
+  },
+  "processes": [
+    {
+      "evidence_id": "ev-benign-proc1",
+      "source": "process_snapshot",
+      "observed_at": "2026-08-25T00:00:05Z",
+      "sensitivity": "personal_possible",
+      "redaction_status": "redacted",
+      "pid": 4100,
+      "parent_pid": 4000,
+      "image_name": "cmd.exe",
+      "image_path": "C:\\Windows\\System32\\cmd.exe",
+      "command_line": "cmd.exe /c <fixture-script>",
+      "start_time": "2026-08-25T00:00:04Z",
+      "integrity_level": "medium",
+      "user": "USER-REDACTED",
+      "signature": {"status": "valid", "publisher": "Microsoft Corporation", "certificate_subject": "Microsoft Windows", "checked_at": "2026-08-25T00:00:06Z"},
+      "sha256": null,
+      "hash_status": "not_computed",
+      "parent_evidence_id": "ev-benign-proc0"
+    },
+    {
+      "evidence_id": "ev-benign-proc0",
+      "source": "process_snapshot",
+      "observed_at": "2026-08-25T00:00:05Z",
+      "sensitivity": "personal_possible",
+      "redaction_status": "redacted",
+      "pid": 4000,
+      "parent_pid": null,
+      "image_name": "VendorUpdater.exe",
+      "image_path": "C:\\Program Files\\ExampleVendor\\Updater\\VendorUpdater.exe",
+      "command_line": "VendorUpdater.exe /startup",
+      "start_time": "2026-08-25T00:00:03Z",
+      "integrity_level": "medium",
+      "user": "USER-REDACTED",
+      "signature": {"status": "valid", "publisher": "Example Vendor", "certificate_subject": "Example Vendor", "checked_at": "2026-08-25T00:00:06Z"},
+      "sha256": null,
+      "hash_status": "not_computed"
+    }
+  ],
+  "persistence": {
+    "run": [],
+    "run_once": []
+  },
+  "scheduled_tasks": {
+    "status": "complete",
+    "items": [
+      {
+        "evidence_id": "ev-benign-task1",
+        "source": "task_scheduler",
+        "observed_at": "2026-08-25T00:00:05Z",
+        "sensitivity": "personal_possible",
+        "redaction_status": "redacted",
+        "task_path": "\\ExampleVendor\\Updater",
+        "task_name": "VendorUpdaterFixture",
+        "author": "Example Vendor",
+        "description": "Fixture de atualização legítima",
+        "state": "ready",
+        "triggers": [{"type": "at_logon", "hidden": false}],
+        "actions": [{"type": "exec", "path": "C:\\Program Files\\ExampleVendor\\Updater\\VendorUpdater.exe", "arguments": "/startup"}],
+        "principal": "USER-REDACTED",
+        "run_level": "least_privilege",
+        "registered_at": "2026-01-01T00:00:00Z"
+      }
+    ]
+  },
+  "services": {"status": "complete", "items": []},
+  "wmi_subscriptions": {"status": "complete", "items": []},
+  "winlogon": {"status": "complete", "items": []},
+  "network": {"status": "complete", "tcp_connections": [], "udp_endpoints": []},
+  "defender_events": {"status": "complete", "items": []},
+  "limitations": [],
+  "integrity": {"canonicalization": "RFC8785-compatible-json-canonicalization", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "read_only_assertion": true, "signing_key_id": null}
+}

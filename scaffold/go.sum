@@ -1,0 +1,3 @@
+// go.sum is intentionally empty in the scaffold.
+// Real dependencies will be added when collector implementations are wired
+// (Tarefas 4-11 do handoff). This placeholder keeps the project buildable.

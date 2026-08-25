@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bootcheck.example.invalid/schema/verdict-response-v1.json",
+  "title": "BootCheck Verdict Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "confidence", "headline_plain", "plain_language_summary", "five_w_two_h", "mitre", "supporting_evidence", "limitations", "recommended_next_steps", "technical_appendix", "safety_notice"],
+  "properties": {
+    "verdict": {"type": "string", "enum": ["likely_safe", "suspicious", "inconclusive"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "headline_plain": {"type": "string", "minLength": 1, "maxLength": 500},
+    "plain_language_summary": {"type": "string", "minLength": 1, "maxLength": 5000},
+    "five_w_two_h": {"$ref": "#/$defs/five_w_two_h"},
+    "mitre": {"type": "array", "items": {"$ref": "#/$defs/mitre"}},
+    "supporting_evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence_reference"}},
+    "limitations": {"type": "array", "items": {"type": "string", "maxLength": 500}},
+    "recommended_next_steps": {"type": "array", "items": {"type": "string", "maxLength": 1000}},
+    "technical_appendix": {"$ref": "#/$defs/technical_appendix"},
+    "safety_notice": {"type": "string", "minLength": 1, "maxLength": 2000}
+  },
+  "$defs": {
+    "string_array": {"type": "array", "items": {"type": "string"}},
+    "five_w_two_h": {
+      "type": "object", "additionalProperties": false,
+      "required": ["what", "who", "when", "where", "why", "how", "impact", "evidence_ids"],
+      "properties": {
+        "what": {"type": "string"}, "who": {"type": "string"}, "when": {"type": "string"}, "where": {"type": "string"}, "why": {"type": "string"}, "how": {"type": "string"}, "impact": {"type": "string"}, "evidence_ids": {"$ref": "#/$defs/string_array"}
+      }
+    },
+    "mitre": {
+      "type": "object", "additionalProperties": false,
+      "required": ["technique_id", "name", "rationale", "evidence_ids"],
+      "properties": {"technique_id": {"type": "string"}, "name": {"type": "string"}, "rationale": {"type": "string"}, "evidence_ids": {"$ref": "#/$defs/string_array"}}
+    },
+    "evidence_reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_id", "role", "explanation"],
+      "properties": {"evidence_id": {"type": "string"}, "role": {"type": "string", "enum": ["supports", "contradicts", "context"]}, "explanation": {"type": "string"}}
+    },
+    "technical_appendix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["processes", "persistence", "network", "notes"],
+      "properties": {
+        "processes": {"type": "array", "items": {"type": "object"}},
+        "persistence": {"type": "array", "items": {"type": "object"}},
+        "network": {"type": "array", "items": {"type": "object"}},
+        "notes": {"$ref": "#/$defs/string_array"}
+      }
+    }
+  }
+}

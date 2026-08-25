@@ -1,0 +1,72 @@
+# Go
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.txt
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python (validate_schemas.py)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+.python-version
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Build artifacts
+/dist/
+/build/
+/bin/
+*.zip
+
+# Sensitive files - NEVER commit
+*.key
+*.pem
+secrets.yaml
+config/local.yaml
+
+# OS-specific
+desktop.ini
+$RECYCLE.BIN/
+
+# Collector output (when implemented)
+*.evidence.json
+*.evidence.html
+*.report.html
+/collections/
+/reports/
+
+# Windows-specific
+*.sys
+*.pdb
+*.manifest
+*.application
+*.deploy

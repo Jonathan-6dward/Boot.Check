@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bootcheck.example.invalid/schema/evidence-package-v1.json",
+  "title": "BootCheck Evidence Package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "collection_id",
+    "created_at",
+    "consent",
+    "host",
+    "collection",
+    "processes",
+    "persistence",
+    "scheduled_tasks",
+    "services",
+    "wmi_subscriptions",
+    "winlogon",
+    "network",
+    "defender_events",
+    "limitations",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "collection_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "consent": {"$ref": "#/$defs/consent"},
+    "host": {"$ref": "#/$defs/host"},
+    "collection": {"$ref": "#/$defs/collection"},
+    "processes": {"type": "array", "items": {"$ref": "#/$defs/process"}},
+    "persistence": {"$ref": "#/$defs/persistence"},
+    "scheduled_tasks": {"$ref": "#/$defs/category_scheduled_tasks"},
+    "services": {"$ref": "#/$defs/category_services"},
+    "wmi_subscriptions": {"$ref": "#/$defs/category_wmi"},
+    "winlogon": {"$ref": "#/$defs/category_winlogon"},
+    "network": {"$ref": "#/$defs/network"},
+    "defender_events": {"$ref": "#/$defs/category_defender"},
+    "limitations": {"type": "array", "items": {"$ref": "#/$defs/limitation"}},
+    "integrity": {"$ref": "#/$defs/integrity"}
+  },
+  "$defs": {
+    "sensitivity": {"type": "string", "enum": ["public", "personal_possible", "sensitive_possible"]},
+    "redaction_status": {"type": "string", "enum": ["not_applicable", "redacted", "full", "withheld"]},
+    "evidence_fields": {
+      "type": "object",
+      "required": ["evidence_id", "source", "observed_at", "sensitivity", "redaction_status"],
+      "properties": {
+        "evidence_id": {"type": "string", "pattern": "^ev-[A-Za-z0-9_-]{8,64}$"},
+        "source": {"type": "string", "enum": ["process_snapshot", "registry", "task_scheduler", "service_control_manager", "wmi_repository", "winlogon_registry", "iphlpapi", "defender_event_log"]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "sensitivity": {"$ref": "#/$defs/sensitivity"},
+        "redaction_status": {"$ref": "#/$defs/redaction_status"},
+        "notes": {"type": "string", "maxLength": 2000}
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local_collection_confirmed", "llm_submission_confirmed", "purpose", "provider_name", "data_mode", "recorded_at"],
+      "properties": {
+        "local_collection_confirmed": {"type": "boolean"},
+        "llm_submission_confirmed": {"type": "boolean"},
+        "purpose": {"type": "string", "const": "triagem defensiva do sintoma cmd.exe/PowerShell no boot"},
+        "provider_name": {"type": "string", "maxLength": 200},
+        "data_mode": {"type": "string", "enum": ["redacted", "full"]},
+        "retention_acknowledged": {"type": "boolean"},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os_family", "os_version", "architecture", "hostname", "interactive_user", "privilege_context"],
+      "properties": {
+        "os_family": {"type": "string", "const": "Windows"},
+        "os_version": {"type": "string", "maxLength": 200},
+        "build_number": {"type": "string", "maxLength": 100},
+        "architecture": {"type": "string", "enum": ["amd64", "arm64", "x86", "unknown"]},
+        "hostname": {"type": "string", "maxLength": 255},
+        "interactive_user": {"type": "string", "maxLength": 255},
+        "privilege_context": {"type": "string", "enum": ["standard_user", "administrator", "system", "unknown"]},
+        "defender_present": {"type": "boolean"}
+      }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "finished_at", "collector_version", "categories_requested", "categories_completed", "read_only_assertion"],
+      "properties": {
+        "started_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": "string", "format": "date-time"},
+        "collector_version": {"type": "string", "maxLength": 100},
+        "categories_requested": {"type": "array", "items": {"type": "string"}},
+        "categories_completed": {"type": "array", "items": {"type": "string"}},
+        "read_only_assertion": {"type": "boolean", "const": true}
+      }
+    },
+    "process": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["pid", "parent_pid", "image_name", "image_path", "command_line", "start_time", "integrity_level", "signature", "hash_status"],
+          "properties": {
+            "pid": {"type": "integer", "minimum": 0},
+            "parent_pid": {"type": ["integer", "null"], "minimum": 0},
+            "image_name": {"type": "string", "maxLength": 260},
+            "image_path": {"type": ["string", "null"], "maxLength": 4096},
+            "command_line": {"type": ["string", "null"], "maxLength": 8192},
+            "start_time": {"type": ["string", "null"], "format": "date-time"},
+            "integrity_level": {"type": "string", "enum": ["low", "medium", "high", "system", "unknown"]},
+            "user": {"type": ["string", "null"], "maxLength": 255},
+            "signature": {"$ref": "#/$defs/signature"},
+            "sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+            "hash_status": {"type": "string", "enum": ["computed", "not_computed", "failed", "withheld"]},
+            "parent_evidence_id": {"type": ["string", "null"], "pattern": "^ev-[A-Za-z0-9_-]{8,64}$"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"type": "string", "enum": ["valid", "invalid", "unsigned", "unknown", "not_checked"]},
+        "publisher": {"type": ["string", "null"], "maxLength": 500},
+        "certificate_subject": {"type": ["string", "null"], "maxLength": 500},
+        "checked_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run", "run_once"],
+      "properties": {
+        "run": {"type": "array", "items": {"$ref": "#/$defs/registry_autorun"}},
+        "run_once": {"type": "array", "items": {"$ref": "#/$defs/registry_autorun"}}
+      }
+    },
+    "registry_autorun": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["hive", "key_path", "value_name", "value_data", "scope"],
+          "properties": {
+            "hive": {"type": "string", "enum": ["HKCU", "HKLM"]},
+            "key_path": {"type": "string", "maxLength": 2048},
+            "value_name": {"type": "string", "maxLength": 255},
+            "value_data": {"type": ["string", "null"], "maxLength": 8192},
+            "scope": {"type": "string", "enum": ["user", "machine"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "category_base": {
+      "type": "object",
+      "required": ["status", "items"],
+      "properties": {
+        "status": {"type": "string", "enum": ["complete", "partial", "not_accessible", "not_supported", "failed"]},
+        "items": {"type": "array"},
+        "error_code": {"type": ["string", "null"], "maxLength": 100},
+        "error_message": {"type": ["string", "null"], "maxLength": 1000}
+      }
+    },
+    "category_scheduled_tasks": {
+      "allOf": [
+        {"$ref": "#/$defs/category_base"},
+        {"type": "object", "properties": {"items": {"items": {"$ref": "#/$defs/scheduled_task"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "category_services": {
+      "allOf": [
+        {"$ref": "#/$defs/category_base"},
+        {"type": "object", "properties": {"items": {"items": {"$ref": "#/$defs/service"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "category_wmi": {
+      "allOf": [
+        {"$ref": "#/$defs/category_base"},
+        {"type": "object", "properties": {"items": {"items": {"$ref": "#/$defs/wmi_subscription"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "category_winlogon": {
+      "allOf": [
+        {"$ref": "#/$defs/category_base"},
+        {"type": "object", "properties": {"items": {"items": {"$ref": "#/$defs/winlogon_value"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "category_defender": {
+      "allOf": [
+        {"$ref": "#/$defs/category_base"},
+        {"type": "object", "properties": {"items": {"items": {"$ref": "#/$defs/defender_event"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "scheduled_task": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["task_path", "task_name", "state", "triggers", "actions", "principal", "run_level"],
+          "properties": {
+            "task_path": {"type": "string", "maxLength": 2048},
+            "task_name": {"type": "string", "maxLength": 255},
+            "author": {"type": ["string", "null"], "maxLength": 500},
+            "description": {"type": ["string", "null"], "maxLength": 2000},
+            "state": {"type": "string", "maxLength": 50},
+            "triggers": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+            "actions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+            "principal": {"type": ["string", "null"], "maxLength": 500},
+            "run_level": {"type": "string", "maxLength": 100},
+            "registered_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "service": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["name", "display_name", "state", "start_type", "service_account", "image_path", "signature"],
+          "properties": {
+            "name": {"type": "string", "maxLength": 255},
+            "display_name": {"type": "string", "maxLength": 255},
+            "state": {"type": "string", "maxLength": 50},
+            "start_type": {"type": "string", "maxLength": 50},
+            "service_account": {"type": ["string", "null"], "maxLength": 255},
+            "image_path": {"type": ["string", "null"], "maxLength": 4096},
+            "description": {"type": ["string", "null"], "maxLength": 2000},
+            "signature": {"$ref": "#/$defs/signature"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "wmi_subscription": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["namespace", "filter_name", "consumer_name", "binding_name"],
+          "properties": {
+            "namespace": {"type": "string", "maxLength": 500},
+            "filter_name": {"type": ["string", "null"], "maxLength": 500},
+            "consumer_name": {"type": ["string", "null"], "maxLength": 500},
+            "binding_name": {"type": ["string", "null"], "maxLength": 500},
+            "creator": {"type": ["string", "null"], "maxLength": 500},
+            "event_query": {"type": ["string", "null"], "maxLength": 4000},
+            "created_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "winlogon_value": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["hive", "key_path", "value_name", "value_data", "scope"],
+          "properties": {
+            "hive": {"type": "string", "enum": ["HKCU", "HKLM"]},
+            "key_path": {"type": "string", "maxLength": 2048},
+            "value_name": {"type": "string", "maxLength": 255},
+            "value_data": {"type": ["string", "null"], "maxLength": 8192},
+            "scope": {"type": "string", "enum": ["user", "machine"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "defender_event": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["log_name", "provider", "event_id", "level", "timestamp", "message", "action"],
+          "properties": {
+            "log_name": {"type": "string", "maxLength": 500},
+            "provider": {"type": "string", "maxLength": 500},
+            "event_id": {"type": "integer", "minimum": 0},
+            "level": {"type": "string", "maxLength": 100},
+            "timestamp": {"type": "string", "format": "date-time"},
+            "message": {"type": ["string", "null"], "maxLength": 4000},
+            "action": {"type": ["string", "null"], "maxLength": 500},
+            "threat_name": {"type": ["string", "null"], "maxLength": 500},
+            "category": {"type": ["string", "null"], "maxLength": 500}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "tcp_connections", "udp_endpoints"],
+      "properties": {
+        "status": {"type": "string", "enum": ["complete", "partial", "not_accessible", "failed"]},
+        "tcp_connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
+        "udp_endpoints": {"type": "array", "items": {"$ref": "#/$defs/connection"}}
+      }
+    },
+    "connection": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence_fields"},
+        {
+          "type": "object",
+          "required": ["protocol", "local_address", "local_port", "remote_address", "remote_port", "state", "owning_pid"],
+          "properties": {
+            "protocol": {"type": "string", "enum": ["tcp4", "tcp6", "udp4", "udp6"]},
+            "local_address": {"type": "string", "maxLength": 100},
+            "local_port": {"type": "integer", "minimum": 0, "maximum": 65535},
+            "remote_address": {"type": ["string", "null"], "maxLength": 100},
+            "remote_port": {"type": ["integer", "null"], "minimum": 0, "maximum": 65535},
+            "state": {"type": "string", "maxLength": 50},
+            "owning_pid": {"type": ["integer", "null"], "minimum": 0},
+            "owning_image": {"type": ["string", "null"], "maxLength": 260}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "code", "message", "impact"],
+      "properties": {
+        "category": {"type": "string", "maxLength": 100},
+        "code": {"type": "string", "maxLength": 100},
+        "message": {"type": "string", "maxLength": 1000},
+        "impact": {"type": "string", "enum": ["low", "medium", "high"]}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalization", "sha256", "read_only_assertion"],
+      "properties": {
+        "canonicalization": {"type": "string", "const": "RFC8785-compatible-json-canonicalization"},
+        "sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "read_only_assertion": {"type": "boolean", "const": true},
+        "signing_key_id": {"type": ["string", "null"], "maxLength": 200}
+      }
+    }
+  }
+}

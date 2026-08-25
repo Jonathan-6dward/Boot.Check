@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-schemas:
+    name: Validate JSON Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install jsonschema
+
+      - name: Validate schemas and fixtures
+        run: python validate_schemas.py
+
+  go-test:
+    name: Go build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Tidy modules
+        working-directory: scaffold
+        run: go mod tidy
+
+      - name: Build
+        working-directory: scaffold
+        run: go build ./...
+
+      - name: Vet
+        working-directory: scaffold
+        run: go vet ./...
+
+      - name: Test
+        working-directory: scaffold
+        run: go test -v ./...
+
+  gofmt:
+    name: Go formatting check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Check formatting
+        working-directory: scaffold
+        run: |
+          if [ "$(gofmt -l . | wc -l)" -ne 0 ]; then
+            echo "Files not formatted:"
+            gofmt -l .
+            exit 1
+          fi

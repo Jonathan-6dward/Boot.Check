@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "collection_id": "fixture-ambiguous-0001",
+  "created_at": "2026-08-25T00:00:00Z",
+  "consent": {
+    "local_collection_confirmed": true,
+    "llm_submission_confirmed": true,
+    "purpose": "triagem defensiva do sintoma cmd.exe/PowerShell no boot",
+    "provider_name": "mock-provider",
+    "data_mode": "redacted",
+    "retention_acknowledged": true,
+    "recorded_at": "2026-08-25T00:00:00Z"
+  },
+  "host": {
+    "os_family": "Windows",
+    "os_version": "fixture",
+    "build_number": "fixture",
+    "architecture": "amd64",
+    "hostname": "HOST-REDACTED",
+    "interactive_user": "USER-REDACTED",
+    "privilege_context": "standard_user",
+    "defender_present": true
+  },
+  "collection": {
+    "started_at": "2026-08-25T00:00:00Z",
+    "finished_at": "2026-08-25T00:00:08Z",
+    "collector_version": "fixture",
+    "categories_requested": ["processes", "persistence", "scheduled_tasks", "services", "wmi_subscriptions", "winlogon", "network", "defender_events"],
+    "categories_completed": ["processes", "persistence", "scheduled_tasks", "services", "wmi_subscriptions", "winlogon", "network", "defender_events"],
+    "read_only_assertion": true
+  },
+  "processes": [
+    {
+      "evidence_id": "ev-amb-proc1",
+      "source": "process_snapshot",
+      "observed_at": "2026-08-25T00:00:04Z",
+      "sensitivity": "personal_possible",
+      "redaction_status": "redacted",
+      "pid": 6100,
+      "parent_pid": 6000,
+      "image_name": "cmd.exe",
+      "image_path": "C:\\Program Files\\ExampleAgent\\agent-helper.exe",
+      "command_line": "cmd.exe /c <fixture-argument>",
+      "start_time": "2026-08-25T00:00:03Z",
+      "integrity_level": "medium",
+      "user": "USER-REDACTED",
+      "signature": {"status": "unknown", "publisher": null, "certificate_subject": null, "checked_at": "2026-08-25T00:00:05Z"},
+      "sha256": null,
+      "hash_status": "withheld",
+      "parent_evidence_id": "ev-amb-proc0"
+    },
+    {
+      "evidence_id": "ev-amb-proc0",
+      "source": "process_snapshot",
+      "observed_at": "2026-08-25T00:00:04Z",
+      "sensitivity": "personal_possible",
+      "redaction_status": "redacted",
+      "pid": 6000,
+      "parent_pid": null,
+      "image_name": "ExampleAgent.exe",
+      "image_path": "C:\\Program Files\\ExampleAgent\\ExampleAgent.exe",
+      "command_line": "ExampleAgent.exe /startup",
+      "start_time": "2026-08-25T00:00:02Z",
+      "integrity_level": "medium",
+      "user": "USER-REDACTED",
+      "signature": {"status": "unknown", "publisher": null, "certificate_subject": null, "checked_at": "2026-08-25T00:00:05Z"},
+      "sha256": null,
+      "hash_status": "withheld"
+    }
+  ],
+  "persistence": {
+    "run": [{
+      "evidence_id": "ev-amb-run1",
+      "source": "registry",
+      "observed_at": "2026-08-25T00:00:04Z",
+      "sensitivity": "personal_possible",
+      "redaction_status": "redacted",
+      "hive": "HKCU",
+      "key_path": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "value_name": "ExampleAgent",
+      "value_data": "C:\\Program Files\\ExampleAgent\\ExampleAgent.exe /startup",
+      "scope": "user"
+    }],
+    "run_once": []
+  },
+  "scheduled_tasks": {"status": "not_accessible", "items": [], "error_code": "ACCESS_DENIED", "error_message": "fixture: definição não acessível"},
+  "services": {"status": "complete", "items": []},
+  "wmi_subscriptions": {"status": "not_accessible", "items": [], "error_code": "ACCESS_DENIED", "error_message": "fixture: repositório não acessível"},
+  "winlogon": {"status": "complete", "items": []},
+  "network": {"status": "partial", "tcp_connections": [], "udp_endpoints": []},
+  "defender_events": {"status": "complete", "items": []},
+  "limitations": [
+    {"category": "scheduled_tasks", "code": "ACCESS_DENIED", "message": "A definição de tarefa não pôde ser lida.", "impact": "high"},
+    {"category": "wmi_subscriptions", "code": "ACCESS_DENIED", "message": "O repositório WMI não pôde ser lido.", "impact": "high"},
+    {"category": "process_hash", "code": "WITHHELD", "message": "Hash e publisher não disponíveis no modo de dados escolhido.", "impact": "medium"}
+  ],
+  "integrity": {"canonicalization": "RFC8785-compatible-json-canonicalization", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "read_only_assertion": true, "signing_key_id": null}
+}
