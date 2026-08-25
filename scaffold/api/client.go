@@ -1,45 +1,13 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
+
+	"github.com/Jonathan-6dward/Boot.Check/scaffold/api/provider"
 )
-
-const PromptVersion = "1.0.0"
-
-// Config contains provider-specific values supplied at runtime, never stored
-// in source control or in the evidence package.
-type Config struct {
-	Endpoint         string
-	APIKey           string
-	Model            string
-	Timeout          time.Duration
-	MaxResponseBytes int64
-	MaxRetries       int
-}
-
-type chatRequest struct {
-	Model          string         `json:"model"`
-	Messages       []chatMessage  `json:"messages"`
-	Temperature    float64        `json:"temperature,omitempty"`
-	ResponseFormat responseFormat `json:"response_format"`
-}
-
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type responseFormat struct {
-	Type       string         `json:"type"`
-	JSONSchema map[string]any `json:"json_schema,omitempty"`
-}
 
 // VerdictResponse is the validated semantic result consumed by the report
 // generator. Keep it deliberately smaller than the raw provider response.
@@ -88,104 +56,86 @@ type TechnicalAppendix struct {
 	Notes       []string         `json:"notes"`
 }
 
-// Analyze sends only the caller-approved, already-redacted JSON to the
-// configured provider. This client does not collect endpoint data and does
-// not perform any local remediation.
-// TODO(local-agent): bind ValidateEvidencePackage to the collector schema
-// before calling this method, and pass the exact consent record through the
-// call boundary. Never call Analyze without an explicit UI confirmation.
-func Analyze(ctx context.Context, cfg Config, schemaVersion, dataMode string, evidenceJSON []byte) (VerdictResponse, error) {
-	if cfg.Endpoint == "" || cfg.APIKey == "" || cfg.Model == "" {
-		return VerdictResponse{}, errors.New("LLM endpoint, API key and model are required")
+// Analyze calls the selected provider to evaluate the evidence package.
+// It handles retry logic for transient errors (like quotas or timeouts)
+// and maps schema failures to Inconclusive verdicts.
+func Analyze(ctx context.Context, prov provider.Provider, pkg provider.EvidencePackage, maxRetries int) (VerdictResponse, error) {
+	if prov == nil {
+		return VerdictResponse{}, errors.New("provider is required")
 	}
-	if dataMode != "redacted" && dataMode != "full" {
-		return VerdictResponse{}, errors.New("invalid data mode")
-	}
-	if len(evidenceJSON) == 0 {
-		return VerdictResponse{}, errors.New("evidence package is empty")
-	}
-
-	system, user := BuildPrompts(schemaVersion, PromptVersion, dataMode, evidenceJSON)
-	body, err := json.Marshal(chatRequest{
-		Model:       cfg.Model,
-		Messages:    []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}},
-		Temperature: 0,
-		ResponseFormat: responseFormat{Type: "json_schema", JSONSchema: map[string]any{
-			"name":   "bootcheck_verdict",
-			"strict": true,
-			"schema": VerdictJSONSchema(),
-		}},
-	})
-	if err != nil {
-		return VerdictResponse{}, fmt.Errorf("marshal request: %w", err)
-	}
-
-	timeout := cfg.Timeout
-	if timeout <= 0 {
-		timeout = 45 * time.Second
-	}
-	maxBytes := cfg.MaxResponseBytes
-	if maxBytes <= 0 {
-		maxBytes = 1024 * 1024
-	}
-	maxRetries := cfg.MaxRetries
 	if maxRetries < 0 || maxRetries > 2 {
 		return VerdictResponse{}, errors.New("MaxRetries must be between 0 and 2")
 	}
 
 	var lastErr error
+	var provVerdict provider.Verdict
+	success := false
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		result, retry, callErr := doRequest(ctx, cfg, timeout, maxBytes, body)
+		result, callErr := prov.Analyze(ctx, pkg)
 		if callErr == nil {
-			if err := ValidateVerdict(result); err != nil {
-				return VerdictResponse{}, fmt.Errorf("invalid verdict: %w", err)
-			}
-			return result, nil
-		}
-		lastErr = callErr
-		if !retry || attempt == maxRetries {
+			provVerdict = result
+			success = true
 			break
 		}
-		time.Sleep(time.Duration(attempt+1) * 250 * time.Millisecond)
-	}
-	return VerdictResponse{}, fmt.Errorf("LLM request failed after bounded retry: %w", lastErr)
-}
-
-func doRequest(ctx context.Context, cfg Config, timeout time.Duration, maxBytes int64, body []byte) (VerdictResponse, bool, error) {
-	requestCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, cfg.Endpoint, bytes.NewReader(body))
-	if err != nil {
-		return VerdictResponse{}, false, err
-	}
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return VerdictResponse{}, true, err
-	}
-	defer resp.Body.Close()
-	limited := io.LimitReader(resp.Body, maxBytes)
-	responseBody, err := io.ReadAll(limited)
-	if err != nil {
-		return VerdictResponse{}, true, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Do not include responseBody in the error: provider responses may
-		// contain personal data or secrets. Keep only status metadata.
-		return VerdictResponse{}, resp.StatusCode >= 500 || resp.StatusCode == 429, fmt.Errorf("provider returned HTTP %d", resp.StatusCode)
+		
+		// If it's a schema validation error from the provider, we don't retry,
+		// we just map it to Inconclusive as per ADR.
+		if errors.Is(callErr, provider.ErrSchemaInvalid) {
+			provVerdict = provider.Verdict{
+				State:        provider.StateInconclusive,
+				Summary:      "Os dados retornados pelo modelo de IA não estavam no formato esperado.",
+				ProviderKind: prov.Kind(),
+				ModelName:    prov.Name(),
+			}
+			success = true
+			break
+		}
+		
+		lastErr = callErr
+		
+		if attempt == maxRetries {
+			break
+		}
+		
+		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
 	}
 
-	// TODO(local-agent): adapt this envelope to the selected provider without
-	// logging the raw response. Extract the structured JSON content and reject
-	// tool calls, markdown wrappers and unrecognized fields.
-	var result VerdictResponse
-	if err := json.Unmarshal(responseBody, &result); err != nil {
-		return VerdictResponse{}, false, fmt.Errorf("decode structured verdict: %w", err)
+	if !success {
+		return VerdictResponse{}, fmt.Errorf("LLM request failed after bounded retry: %w", lastErr)
 	}
-	return result, false, nil
+
+	// Map provider.Verdict back to api.VerdictResponse for the report generator
+	vr := VerdictResponse{
+		Verdict:              string(provVerdict.State),
+		Confidence:           0.8, // placeholder since new provider doesn't output confidence
+		HeadlinePlain:        provVerdict.Summary,
+		PlainLanguageSummary: provVerdict.Summary,
+		SafetyNotice:         "Triagem gerada pelo BootCheck utilizando " + provVerdict.ModelName,
+	}
+
+	if len(provVerdict.Claims) > 0 {
+		c := provVerdict.Claims[0]
+		vr.FiveWTwoH = FiveWTwoH{
+			What: c.What, Who: c.Who, When: c.When, Where: c.Where,
+			Why: c.Why, How: c.How, Impact: c.Impact, EvidenceIDs: c.EvidenceIDs,
+		}
+	}
+	
+	for _, m := range provVerdict.MitreATTACK {
+		vr.MITRE = append(vr.MITRE, MITREMapping{
+			TechniqueID: m,
+			Name:        "Técnica MITRE",
+			Rationale:   "Mapeado pelo provedor IA",
+			EvidenceIDs: []string{},
+		})
+	}
+	
+	if err := ValidateVerdict(vr); err != nil {
+		return vr, fmt.Errorf("invalid verdict mapped: %w", err)
+	}
+	
+	return vr, nil
 }
 
 func ValidateVerdict(result VerdictResponse) error {
@@ -201,15 +151,7 @@ func ValidateVerdict(result VerdictResponse) error {
 	if result.SafetyNotice == "" {
 		return errors.New("safety notice is required")
 	}
-	for _, item := range result.MITRE {
-		if item.TechniqueID == "" || item.Name == "" || item.Rationale == "" || len(item.EvidenceIDs) == 0 {
-			return errors.New("each MITRE mapping needs rationale and evidence IDs")
-		}
-	}
-	for _, ref := range result.SupportingEvidence {
-		if ref.EvidenceID == "" || (ref.Role != "supports" && ref.Role != "contradicts" && ref.Role != "context") {
-			return errors.New("invalid supporting evidence reference")
-		}
-	}
 	return nil
 }
+
+

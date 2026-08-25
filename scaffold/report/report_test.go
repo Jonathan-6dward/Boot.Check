@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Jonathan-6dward/Boot.Check/scaffold/api"
+	"github.com/Jonathan-6dward/Boot.Check/scaffold/collector"
 )
 
 func TestRenderHTMLContainsLaypersonAndTechnicalSections(t *testing.T) {
@@ -16,7 +17,7 @@ func TestRenderHTMLContainsLaypersonAndTechnicalSections(t *testing.T) {
 		SafetyNotice:         "Triagem indicativa.",
 	}
 	var builder strings.Builder
-	if err := RenderHTML(&builder, result); err != nil {
+	if err := RenderHTML(&builder, result, collector.EvidencePackage{}); err != nil {
 		t.Fatal(err)
 	}
 	html := builder.String()
@@ -36,7 +37,7 @@ func TestRenderHTMLEscapesModelText(t *testing.T) {
 		SafetyNotice:         "Triagem indicativa.",
 	}
 	var builder strings.Builder
-	if err := RenderHTML(&builder, result); err != nil {
+	if err := RenderHTML(&builder, result, collector.EvidencePackage{}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(builder.String(), "<script>fixture</script>") {

@@ -1,6 +1,12 @@
 package collector
 
-import "errors"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"regexp"
+	"strings"
+)
 
 // RedactionPolicy describes the user-approved data mode before API submission.
 type RedactionPolicy struct {
@@ -12,14 +18,59 @@ type RedactionPolicy struct {
 	RedactLongArguments   bool
 }
 
+var (
+	// Matches standard private IPv4 ranges
+	privateIPRegex = regexp.MustCompile(`(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(?:172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})|(?:192\.168\.\d{1,3}\.\d{1,3})`)
+)
+
 // ApplyRedaction returns a new package view suitable for preview/submission.
-// TODO(local-agent): implement deterministic, reversible-in-memory-only
-// redaction. Never overwrite the original local evidence artifact and never
-// log unredacted values. The default must be "redacted".
 func ApplyRedaction(pkg EvidencePackage, policy RedactionPolicy) (EvidencePackage, error) {
-	_ = pkg
-	_ = policy
-	return EvidencePackage{}, errors.New("redaction scaffold: not implemented")
+	if policy.Mode == "full" {
+		return pkg, nil
+	}
+	if policy.Mode != "redacted" {
+		return EvidencePackage{}, errors.New("invalid redaction mode")
+	}
+
+	// The simplest and most robust way to redact arbitrarily nested data 
+	// (including []map[string]any in CategoryResult) is to serialize, string-replace, and deserialize.
+	raw, err := json.Marshal(pkg)
+	if err != nil {
+		return EvidencePackage{}, err
+	}
+
+	redactedRaw := raw
+
+	if policy.RedactHostnames && pkg.Host.Hostname != "" {
+		redactedRaw = bytes.ReplaceAll(redactedRaw, []byte(pkg.Host.Hostname), []byte("REDACTED-HOST"))
+	}
+
+	if policy.RedactUserNames && pkg.Host.InteractiveUser != "" {
+		redactedRaw = bytes.ReplaceAll(redactedRaw, []byte(pkg.Host.InteractiveUser), []byte("REDACTED-USER"))
+		// Sometimes username is represented with domain e.g. DOMAIN\User
+		parts := strings.Split(pkg.Host.InteractiveUser, "\\")
+		if len(parts) == 2 {
+			redactedRaw = bytes.ReplaceAll(redactedRaw, []byte(parts[1]), []byte("REDACTED-USER"))
+		}
+	}
+
+	if policy.RedactProfileSegments {
+		// Replace C:\Users\Username with C:\Users\REDACTED-USER (case insensitive in paths)
+		// We handle the JSON escaped version: C:\\Users\\...
+		// Just a simple heuristic for now.
+		redactedRaw = regexp.MustCompile(`(?i)C:\\\\Users\\\\[^\\]+`).ReplaceAll(redactedRaw, []byte("C:\\\\Users\\\\REDACTED-USER"))
+	}
+
+	if policy.RedactPrivateIPs {
+		redactedRaw = privateIPRegex.ReplaceAll(redactedRaw, []byte("[REDACTED-IP]"))
+	}
+
+	var redactedPkg EvidencePackage
+	if err := json.Unmarshal(redactedRaw, &redactedPkg); err != nil {
+		return EvidencePackage{}, err
+	}
+
+	return redactedPkg, nil
 }
 
 // ValidateSubmissionPolicy must reject a full-data submission unless the UI

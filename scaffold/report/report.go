@@ -7,20 +7,22 @@ import (
 	"time"
 
 	"github.com/Jonathan-6dward/Boot.Check/scaffold/api"
+	"github.com/Jonathan-6dward/Boot.Check/scaffold/collector"
 )
 
 type ReportData struct {
-	Title       string
-	GeneratedAt time.Time
-	Result      api.VerdictResponse
+	Title         string
+	GeneratedAt   time.Time
+	Result        api.VerdictResponse
+	CollectionID  string
+	SchemaVersion string
+	PackageHash   string
 }
 
 // RenderHTML renders a local, self-contained report. It is intentionally a
 // pure formatting function: it does not call the collector, the network or a
 // remediation command.
-// TODO(local-agent): add report provenance, collection_id and package hash to
-// the header once the collector contract is wired in.
-func RenderHTML(w io.Writer, result api.VerdictResponse) error {
+func RenderHTML(w io.Writer, result api.VerdictResponse, pkg collector.EvidencePackage) error {
 	if err := api.ValidateVerdict(result); err != nil {
 		return err
 	}
@@ -37,7 +39,15 @@ func RenderHTML(w io.Writer, result api.VerdictResponse) error {
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, ReportData{Title: "BootCheck — Relatório de triagem", GeneratedAt: time.Now().UTC(), Result: result})
+	data := ReportData{
+		Title:         "BootCheck — Relatório de triagem",
+		GeneratedAt:   time.Now().UTC(),
+		Result:        result,
+		CollectionID:  pkg.CollectionID,
+		SchemaVersion: pkg.SchemaVersion,
+		PackageHash:   pkg.Integrity.SHA256,
+	}
+	return tmpl.Execute(w, data)
 }
 
 const htmlTemplate = `<!doctype html>
@@ -53,15 +63,19 @@ const htmlTemplate = `<!doctype html>
     .badge { display: inline-block; padding: .35rem .65rem; border-radius: .45rem; font-weight: 700; background: #e8eef9; }
     .notice { padding: 1rem; background: #fff4d6; border-left: 4px solid #c98a00; }
     section { margin: 2rem 0; }
-    pre { overflow-x: auto; padding: 1rem; background: #f5f7fa; border-radius: .4rem; }
+    pre { overflow-x: auto; padding: 1rem; background: #f5f7fa; border-radius: .4rem; font-size: 0.9em; }
     dt { font-weight: 700; margin-top: .6rem; }
     dd { margin-left: 0; }
+    .meta { font-size: 0.85em; color: #555; }
   </style>
 </head>
 <body>
   <header>
     <h1>{{.Title}}</h1>
     <p>Gerado em {{.GeneratedAt}}</p>
+    <div class="meta">
+      <p>ID da Coleção: <code>{{.CollectionID}}</code> | Hash do Pacote: <code>{{.PackageHash}}</code> | Schema: <code>{{.SchemaVersion}}</code></p>
+    </div>
     <p><span class="badge">{{.Result.Verdict}}</span> Confiança de triagem: {{printf "%.0f" (mul100 .Result.Confidence)}}%</p>
   </header>
 
